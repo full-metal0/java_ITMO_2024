@@ -3,6 +3,7 @@ plugins {
     application
 }
 
+println("Cool print here")
 group = "org.example"
 version = "1.0-SNAPSHOT"
 
@@ -14,6 +15,14 @@ dependencies {
     implementation("org.jetbrains:annotations:16.0.2")
     testImplementation(platform("org.junit:junit-bom:5.7.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
+}
+
+val coolTask = tasks.register("coolTask") {
+    group = "build"
+    println("I'm ${this.name}")
+    doFirst {
+        println("I'm cool and rolling")
+    }
 }
 
 java {
@@ -29,6 +38,7 @@ java {
 }
 
 tasks.compileJava {
+    dependsOn(coolTask)
     options.release.set(11)
 }
 

@@ -13,7 +13,7 @@
 git remote add upstream git@gitlab.com:sloboegen98/java-1-2024.git
 ```
 
-Дать `sloboegen98` и `DKARAGODIN` доступ к этому форку (с уровнем прав не ниже Developer).
+Дать `sloboegen98`, `DKARAGODIN`, `asurkis` доступ к этому форку (с уровнем прав не ниже Developer).
 
 2. Домашки выкладываются в ветки вида `task-N-title`, контрольные в ветки `control-N`
 

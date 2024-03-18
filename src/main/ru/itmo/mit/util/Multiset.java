@@ -38,6 +38,24 @@ public interface Multiset<E> extends Collection<E> {
     @NotNull
     Iterator<E> iterator();
 
+    @Override
+    boolean add(E e);
+
+    @Override
+    boolean remove(Object o);
+
+    @Override
+    int size();
+
+    @Override
+    boolean contains(Object o);
+
+    @Override
+    Object[] toArray();
+
+    @Override
+    <T> T[] toArray(T[] a);
+
     interface Entry<E> {
 
         E getElement();

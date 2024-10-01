@@ -145,13 +145,14 @@ public class Repository {
     private List<String> getReadyToCommitFiles() throws IOException {
         List<String> readyToCommitFiles = new ArrayList<>();
         Path workingDirPath = Paths.get(workingDir);
+        Map<String, String> filesInCommit = getFilesFromLastCommit();
 
         Files.walk(workingDirPath)
                 .filter(Files::isRegularFile)
                 .filter(path -> !path.startsWith(workingDirPath.resolve(REPO_DIR)))
                 .forEach(path -> {
                     String relativePath = workingDirPath.relativize(path).toString();
-                    if (index.containsKey(relativePath)) {
+                    if (index.containsKey(relativePath) && !filesInCommit.containsKey(relativePath)) {
                         readyToCommitFiles.add(relativePath);
                     }
                 });
@@ -159,6 +160,24 @@ public class Repository {
         return readyToCommitFiles;
     }
 
+
+    private Map<String, String> getFilesFromLastCommit() throws IOException {
+        Map<String, String> filesInCommit = new HashMap<>();
+        if (headCommit != null) {
+            Path commitPath = Paths.get(workingDir, COMMITS_DIR, headCommit);
+            List<String> commitContent = Files.readAllLines(commitPath, StandardCharsets.UTF_8);
+            for (String line : commitContent) {
+                if (line.startsWith("Message:") || line.startsWith("Date:") || line.startsWith("Parent:")) {
+                    continue;
+                }
+                String[] parts = line.split(": ", 2);
+                if (parts.length == 2) {
+                    filesInCommit.put(parts[0], parts[1]);
+                }
+            }
+        }
+        return filesInCommit;
+    }
 
     private boolean isHeadDetached() {
         try {
@@ -462,7 +481,6 @@ public class Repository {
         }
     }
 
-
     public void createBranch(String branchName, PrintStream out) throws GitException {
         try {
             Path branchPath = Paths.get(workingDir, BRANCHES_DIR, branchName);
@@ -473,6 +491,10 @@ public class Repository {
             out.println("Branch " + branchName + " created successfully");
             out.println("You can checkout it with 'checkout " + branchName + "'");
             Files.write(branchPath, headCommit.getBytes(StandardCharsets.UTF_8));
+
+            // Automatically checkout the new branch
+            currentBranch = branchName;
+            saveHead();
 
         } catch (IOException e) {
             throw new GitException("Failed to create branch: " + branchName, e);

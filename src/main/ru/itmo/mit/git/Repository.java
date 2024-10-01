@@ -67,9 +67,7 @@ public class Repository {
                 Path filePath = Paths.get(workingDir, file);
                 if (Files.exists(filePath)) {
                     index.put(file, new String(Files.readAllBytes(filePath), StandardCharsets.UTF_8));
-                    System.out.println("File added: " + file);
                 } else {
-                    System.out.println("File not found: " + file);
                     throw new GitException("File not found: " + file);
                 }
             }
@@ -81,12 +79,25 @@ public class Repository {
     }
 
     public void rm(List<String> files) throws GitException {
+        // Начало выполнения метода rm
+        System.out.println("Начало выполнения метода rm");
+
+        // Проходим по каждому файлу из списка files
         for (String file : files) {
+            System.out.println("Обработка файла: " + file);
+
+            // Удаление файла из индекса
             index.remove(file);
+            System.out.println("Файл удален из индекса: " + file);
         }
+
+        // Сохранение обновленного индекса
         saveIndex();
-        System.out.println("Rm completed successful");
+
+        // Завершение выполнения метода rm
+        System.out.println("Rm completed successfully");
     }
+
 
     public void status(PrintStream out) {
         StringBuilder status = new StringBuilder();
@@ -99,6 +110,9 @@ public class Repository {
         try {
             List<String> untrackedFiles = getUntrackedFiles();
             List<String> readyToCommitFiles = getReadyToCommitFiles();
+
+            Collections.sort(readyToCommitFiles);
+            Collections.sort(untrackedFiles);
 
             if (!readyToCommitFiles.isEmpty()) {
                 status.append("Ready to commit:\n\n");
@@ -176,24 +190,44 @@ public class Repository {
 
     private boolean isFileTracked(String relativePath) {
         try {
-            Path currentCommitPath = Paths.get(workingDir, COMMITS_DIR, headCommit);
-            List<String> commitContent = Files.readAllLines(currentCommitPath, StandardCharsets.UTF_8);
-            for (String line : commitContent) {
-                if (line.startsWith(relativePath + ":")) {
-                    return true;
+            String currentCommit = headCommit;
+            while (currentCommit != null) {
+                Path commitPath = Paths.get(workingDir, COMMITS_DIR, currentCommit);
+                List<String> commitContent = Files.readAllLines(commitPath, StandardCharsets.UTF_8);
+                for (String line : commitContent) {
+                    if (line.startsWith(relativePath + ":")) {
+                        return true;
+                    }
                 }
+                currentCommit = getParentCommit(commitContent);
             }
-        } catch (IOException e) {}
-
+        } catch (IOException e) {
+            // Логирование ошибки, если необходимо
+        }
         return false;
     }
 
+    private String getParentCommit(List<String> commitContent) {
+        for (String line : commitContent) {
+            if (line.startsWith("Parent: ")) {
+                return line.substring("Parent: ".length());
+            }
+        }
+        return null;
+    }
+
+
     public void commit(String message) throws GitException {
         if (index.isEmpty()) {
+            System.out.println("Индекс пустой, нечего коммитить.");
             throw new GitException("Nothing to commit");
         }
 
+        System.out.println("Начинаем создание коммита с сообщением: " + message);
+
         String commitHash = generateHash(message + new Date().toString());
+        System.out.println("Сгенерирован хэш коммита: " + commitHash);
+
         try {
             StringBuilder commitContent = new StringBuilder();
             commitContent.append("Message: ").append(message).append("\n");
@@ -206,20 +240,30 @@ public class Repository {
                 commitContent.append(entry.getKey()).append(": ").append(entry.getValue()).append("\n");
             }
 
-            Files.write(Paths.get(workingDir, COMMITS_DIR, commitHash), commitContent.toString().getBytes(StandardCharsets.UTF_8));
+            System.out.println("Создано содержимое коммита:\n" + commitContent.toString());
+
+            Path commitPath = Paths.get(workingDir, COMMITS_DIR, commitHash);
+            Files.write(commitPath, commitContent.toString().getBytes(StandardCharsets.UTF_8));
+            System.out.println("Коммит записан в файл: " + commitPath.toString());
 
             headCommit = commitHash;
             saveHead();
+            System.out.println("HEAD обновлен на коммит: " + commitHash);
+
             saveBranch();
+            System.out.println("Текущая ветка сохранена.");
 
             index.clear();
             saveIndex();
+            System.out.println("Индекс очищен и сохранен.");
 
             System.out.println("Files committed");
         } catch (IOException e) {
+            System.out.println("Ошибка при создании коммита: " + e.getMessage());
             throw new GitException("Failed to create commit", e);
         }
     }
+
 
     private void saveBranch() throws GitException {
         try {
@@ -321,16 +365,27 @@ public class Repository {
     }
 
     private void saveIndex() throws GitException {
+        System.out.println("Начало выполнения метода saveIndex");
+
         StringBuilder indexContent = new StringBuilder();
+        System.out.println("Инициализирован StringBuilder для создания содержимого индекса");
+
         for (Map.Entry<String, String> entry : index.entrySet()) {
             indexContent.append(entry.getKey()).append(":").append(entry.getValue()).append("\n");
+            System.out.println("Добавлено в StringBuilder: " + entry.getKey() + ":" + entry.getValue());
         }
+
         try {
             Files.write(Paths.get(workingDir, INDEX_FILE), indexContent.toString().getBytes(StandardCharsets.UTF_8));
+            System.out.println("Содержимое индекса сохранено в файл " + INDEX_FILE);
         } catch (IOException e) {
+            System.out.println("Произошла ошибка при сохранении индекса в файл " + INDEX_FILE);
             throw new GitException("Failed to save index", e);
         }
+
+        System.out.println("Завершение выполнения метода saveIndex");
     }
+
 
     public void log(PrintStream out, String fromRevision) throws GitException {
         try {
@@ -375,21 +430,6 @@ public class Repository {
         System.out.println("Checkout completed successful");
     }
 
-
-
-    private void updateBranch(String revision) throws GitException {
-        try {
-            if (revision.startsWith("HEAD") || revision.matches("[a-fA-F0-9]{40}")) {
-                Path branchPath = Paths.get(workingDir, HEAD_FILE);
-                Files.write(branchPath, ("ref: refs/heads/" + currentBranch).getBytes(StandardCharsets.UTF_8));
-            } else {
-                currentBranch = revision;
-                saveHead();
-            }
-        } catch (IOException e) {
-            throw new GitException("Failed to update branch", e);
-        }
-    }
 
     public void checkoutFiles(List<String> files) throws GitException {
         try {

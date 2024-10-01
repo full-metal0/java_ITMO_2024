@@ -7,6 +7,7 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.stream.Collectors;
 
 public class Repository {
     private static final String REPO_DIR = ".git";
@@ -517,8 +518,12 @@ public class Repository {
     public void showBranches(PrintStream out) throws GitException {
         try {
             out.println("Available branches:");
-            Files.walk(Paths.get(workingDir, BRANCHES_DIR), 1)
+            List<Path> branches = Files.walk(Paths.get(workingDir, BRANCHES_DIR), 1)
                     .filter(path -> !path.equals(Paths.get(workingDir, BRANCHES_DIR)))
+                    .collect(Collectors.toList());
+
+            branches.stream()
+                    .sorted(Comparator.reverseOrder())
                     .forEach(path -> out.println(path.getFileName()));
         } catch (IOException e) {
             throw new GitException("Failed to show branches", e);

@@ -44,7 +44,6 @@ public class GitTest extends AbstractGitTest {
         rm(file2);
         status();
         commit("Add file1.txt");
-        createFile(file2, "bbb");
         add(file2);
         commit("Add file2.txt");
         status();

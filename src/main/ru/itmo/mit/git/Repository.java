@@ -81,16 +81,11 @@ public class Repository {
     }
 
     public void rm(List<String> files) throws GitException {
-        try {
-            for (String file : files) {
-                index.remove(file);
-                Files.deleteIfExists(Paths.get(workingDir, file));
-            }
-            saveIndex();
-            System.out.println("Rm completed successful");
-        } catch (IOException e) {
-            throw new GitException("Failed to remove files", e);
+        for (String file : files) {
+            index.remove(file);
         }
+        saveIndex();
+        System.out.println("Rm completed successful");
     }
 
     public void status(PrintStream out) {
@@ -103,14 +98,9 @@ public class Repository {
 
         try {
             List<String> untrackedFiles = getUntrackedFiles();
-            List<String> readyToCommitFiles = new ArrayList<>(index.keySet());
+            List<String> readyToCommitFiles = getReadyToCommitFiles();
 
-            Collections.sort(untrackedFiles);
-
-            boolean hasUntracked = !untrackedFiles.isEmpty();
-            boolean hasReadyToCommit = !readyToCommitFiles.isEmpty();
-
-            if (hasReadyToCommit) {
+            if (!readyToCommitFiles.isEmpty()) {
                 status.append("Ready to commit:\n\n");
                 status.append("New files:\n");
                 for (String file : readyToCommitFiles) {
@@ -119,7 +109,7 @@ public class Repository {
                 status.append("\n");
             }
 
-            if (hasUntracked) {
+            if (!untrackedFiles.isEmpty()) {
                 status.append("Untracked files:\n\n");
                 status.append("New files:\n");
                 for (String file : untrackedFiles) {
@@ -128,7 +118,7 @@ public class Repository {
                 status.append("\n");
             }
 
-            if (!hasUntracked && !hasReadyToCommit) {
+            if (readyToCommitFiles.isEmpty() && untrackedFiles.isEmpty()) {
                 status.append("Everything up to date\n");
             }
         } catch (IOException e) {
@@ -137,6 +127,24 @@ public class Repository {
 
         out.print(status.toString());
     }
+
+    private List<String> getReadyToCommitFiles() throws IOException {
+        List<String> readyToCommitFiles = new ArrayList<>();
+        Path workingDirPath = Paths.get(workingDir);
+
+        Files.walk(workingDirPath)
+                .filter(Files::isRegularFile)
+                .filter(path -> !path.startsWith(workingDirPath.resolve(REPO_DIR)))
+                .forEach(path -> {
+                    String relativePath = workingDirPath.relativize(path).toString();
+                    if (index.containsKey(relativePath)) {
+                        readyToCommitFiles.add(relativePath);
+                    }
+                });
+
+        return readyToCommitFiles;
+    }
+
 
     private boolean isHeadDetached() {
         try {
@@ -360,9 +368,14 @@ public class Repository {
 
     public void checkout(String revision) throws GitException {
         reset(revision);
-        updateBranch(revision);
+        if (!revision.matches("[a-fA-F0-9]{40}")) {
+            currentBranch = revision;
+        }
+        saveHead();
         System.out.println("Checkout completed successful");
     }
+
+
 
     private void updateBranch(String revision) throws GitException {
         try {
@@ -433,6 +446,7 @@ public class Repository {
                 throw new GitException("Branch does not exist: " + branchName);
             }
             Files.delete(branchPath);
+            System.out.println("Branch " + branchName + " removed successfully");
         } catch (IOException e) {
             throw new GitException("Failed to remove branch: " + branchName, e);
         }

@@ -5,4 +5,5 @@ public class TestDataGitTest extends GitTest {
     protected TestMode testMode() {
         return TestMode.TEST_DATA;
     }
+
 }

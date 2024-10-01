@@ -10,12 +10,12 @@ import org.junit.jupiter.api.Test;
 public class GitTest extends AbstractGitTest {
     @Override
     protected GitCli createCli(String workingDir) {
-        throw new UnsupportedOperationException();
+        return new Git(workingDir);
     }
 
     @Override
     protected TestMode testMode() {
-        return TestMode.SYSTEM_OUT;
+        return TestMode.TEST_DATA;
     }
 
     @Test
@@ -44,6 +44,7 @@ public class GitTest extends AbstractGitTest {
         rm(file2);
         status();
         commit("Add file1.txt");
+        createFile(file2, "bbb");
         add(file2);
         commit("Add file2.txt");
         status();

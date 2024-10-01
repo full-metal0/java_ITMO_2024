@@ -14,7 +14,6 @@ public class Git implements GitCli {
 
     @Override
     public void runCommand(@NotNull String command, @NotNull List<@NotNull String> arguments) throws GitException {
-
         switch (command) {
             case GitConstants.INIT:
                 repository.init();
@@ -71,7 +70,7 @@ public class Git implements GitCli {
                     throw new GitException("Branch name is required");
                 }
                 repository.removeBranch(arguments.get(0));
-                outputStream.println("Branch develop removed successfully");
+                outputStream.println("Branch " + arguments.get(0) + " removed successfully");
                 break;
             case GitConstants.SHOW_BRANCHES:
                 repository.showBranches(outputStream);

@@ -49,6 +49,8 @@ New files:
 Command: commit Add file1.txt
 Files committed
 ----------------------------
+Create file 'file2.txt' with content 'bbb'
+----------------------------
 Command: add file2.txt
 Add completed successful
 ----------------------------

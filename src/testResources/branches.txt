@@ -44,6 +44,7 @@ Author: Test user
 Date: COMMIT_DATE
 
 Initial commit
+
 ----------------------------
 Command: show-branches
 Available branches:
@@ -69,6 +70,7 @@ Author: Test user
 Date: COMMIT_DATE
 
 Initial commit
+
 ----------------------------
 Command: branch-create new-feature
 Branch new-feature created successfully
@@ -104,6 +106,7 @@ Author: Test user
 Date: COMMIT_DATE
 
 Initial commit
+
 ----------------------------
 Command: checkout develop
 Checkout completed successful
@@ -130,3 +133,4 @@ Author: Test user
 Date: COMMIT_DATE
 
 Initial commit
+

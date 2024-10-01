@@ -95,7 +95,11 @@ public class Repository {
 
     public void status(PrintStream out) {
         StringBuilder status = new StringBuilder();
-        status.append("Current branch is '").append(currentBranch).append("'\n");
+        if (isHeadDetached()) {
+            status.append("Error while performing status: Head is detached\n");
+        } else {
+            status.append("Current branch is '").append(currentBranch).append("'\n");
+        }
 
         try {
             List<String> untrackedFiles = getUntrackedFiles();
@@ -133,6 +137,17 @@ public class Repository {
 
         out.print(status.toString());
     }
+
+    private boolean isHeadDetached() {
+        try {
+            Path headFilePath = Paths.get(workingDir, HEAD_FILE);
+            String headContent = Files.readString(headFilePath, StandardCharsets.UTF_8);
+            return !headContent.startsWith("ref: refs/heads/");
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
 
     private List<String> getUntrackedFiles() throws IOException {
         List<String> untrackedFiles = new ArrayList<>();
@@ -207,6 +222,7 @@ public class Repository {
         }
     }
 
+
     public void reset(String revision) throws GitException {
         String commitHash = getCommitHash(revision);
         if (commitHash == null) {
@@ -220,24 +236,21 @@ public class Repository {
             index.clear();
             cleanWorkingDirectory();
 
-            boolean isFilesSection = false;
             for (String line : commitContent) {
                 if (line.startsWith("Message:") || line.startsWith("Date:") || line.startsWith("Parent:")) {
                     continue;
                 }
-                if (!isFilesSection) {
-                    isFilesSection = true;
-                    continue;
-                }
                 String[] parts = line.split(": ", 2);
-                String fileName = parts[0];
-                String fileContent = parts[1];
+                if (parts.length == 2) {
+                    String fileName = parts[0];
+                    String fileContent = parts[1];
 
-                Path filePath = Paths.get(workingDir, fileName);
-                Files.createDirectories(filePath.getParent());
-                Files.write(filePath, fileContent.getBytes(StandardCharsets.UTF_8));
+                    Path filePath = Paths.get(workingDir, fileName);
+                    Files.createDirectories(filePath.getParent());
+                    Files.write(filePath, fileContent.getBytes(StandardCharsets.UTF_8));
 
-                index.put(fileName, fileContent);
+                    index.put(fileName, fileContent);
+                }
             }
 
             headCommit = commitHash;
@@ -249,6 +262,7 @@ public class Repository {
             throw new GitException("Failed to reset to revision: " + revision, e);
         }
     }
+
 
     private void cleanWorkingDirectory() throws IOException {
         Files.walk(Paths.get(workingDir))
@@ -346,24 +360,55 @@ public class Repository {
 
     public void checkout(String revision) throws GitException {
         reset(revision);
+        updateBranch(revision);
         System.out.println("Checkout completed successful");
     }
 
-    public void checkoutFiles(List<String> files) throws GitException {
-        for (String file : files) {
-            Path filePath = Paths.get(workingDir, file);
-            if (Files.exists(filePath)) {
-                String content = index.get(file);
-                if (content != null) {
-                    try {
-                        Files.write(filePath, content.getBytes(StandardCharsets.UTF_8));
-                    } catch (IOException e) {
-                        throw new GitException("Failed to checkout file: " + file, e);
-                    }
-                }
+    private void updateBranch(String revision) throws GitException {
+        try {
+            if (revision.startsWith("HEAD") || revision.matches("[a-fA-F0-9]{40}")) {
+                Path branchPath = Paths.get(workingDir, HEAD_FILE);
+                Files.write(branchPath, ("ref: refs/heads/" + currentBranch).getBytes(StandardCharsets.UTF_8));
+            } else {
+                currentBranch = revision;
+                saveHead();
             }
+        } catch (IOException e) {
+            throw new GitException("Failed to update branch", e);
         }
     }
+
+    public void checkoutFiles(List<String> files) throws GitException {
+        try {
+            Path commitPath = Paths.get(workingDir, COMMITS_DIR, headCommit);
+            List<String> commitContent = Files.readAllLines(commitPath, StandardCharsets.UTF_8);
+
+            Map<String, String> fileContents = new HashMap<>();
+            for (String line : commitContent) {
+                if (line.startsWith("Message:") || line.startsWith("Date:") || line.startsWith("Parent:")) {
+                    continue;
+                }
+                String[] parts = line.split(": ", 2);
+                if (parts.length == 2) {
+                    fileContents.put(parts[0], parts[1]);
+                }
+            }
+
+            for (String file : files) {
+                Path filePath = Paths.get(workingDir, file);
+                String content = fileContents.get(file);
+                if (content != null) {
+                    Files.write(filePath, content.getBytes(StandardCharsets.UTF_8));
+                } else {
+                    Files.deleteIfExists(filePath);
+                }
+            }
+            System.out.println("Checkout completed successful");
+        } catch (IOException e) {
+            throw new GitException("Failed to checkout files", e);
+        }
+    }
+
 
     public void createBranch(String branchName, PrintStream out) throws GitException {
         try {

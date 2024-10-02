@@ -85,6 +85,7 @@ public class Git implements GitCli {
                     throw new GitException("Branch name is required");
                 }
                 repository.merge(arguments.get(0));
+                outputStream.println("Files committed");
                 break;
             default:
                 throw new GitException("Unknown command: " + command);

@@ -77,4 +77,3 @@ Author: Test user
 Date: COMMIT_DATE
 
 Initial commit
-

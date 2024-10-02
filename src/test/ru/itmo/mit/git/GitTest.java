@@ -161,4 +161,28 @@ public class GitTest extends AbstractGitTest {
 
         check("branchRemove.txt");
     }
+
+    @Test
+    public void testMerge() throws Exception {
+        createFileAndCommit("file1.txt", "aaa");
+        status();
+        log();
+
+        createBranch("feature");
+        checkoutBranch("feature");
+        createFileAndCommit("file2.txt", "bbb");
+        status();
+        log();
+
+        checkoutMaster();
+        merge("feature");
+        status();
+        log();
+
+        fileContent("file1.txt");
+        fileContent("file2.txt");
+
+        check("merge.txt");
+    }
+
 }

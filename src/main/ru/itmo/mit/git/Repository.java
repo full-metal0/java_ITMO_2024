@@ -17,7 +17,7 @@ public class Repository {
     private static final String INDEX_FILE = REPO_DIR + "/index";
 
     private final String workingDir;
-    private Map<String, String> index = new HashMap<>();
+    private final Map<String, String> index = new HashMap<>();
     private String currentBranch = "master";
     private String headCommit;
 
@@ -47,10 +47,13 @@ public class Repository {
             }
 
             headCommit = generateHash("Initial commit" + new Date().toString());
+
             String initialCommitContent = "Message: Initial commit";
+
             Files.write(Paths.get(workingDir, COMMITS_DIR, headCommit), initialCommitContent.getBytes(StandardCharsets.UTF_8));
 
             currentBranch = "master";
+
             Path masterBranchPath = Paths.get(branchesDir.toString(), currentBranch);
             Files.write(masterBranchPath, headCommit.getBytes(StandardCharsets.UTF_8));
 
@@ -247,7 +250,10 @@ public class Repository {
                 out.println("Date: COMMIT_DATE");
                 out.println();
                 out.println(message);
-                out.println();
+
+                if (!"Initial commit".equals(message)) {
+                    out.println();
+                }
 
                 commitHash = parent.isEmpty() ? null : parent;
             }

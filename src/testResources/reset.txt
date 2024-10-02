@@ -36,7 +36,6 @@ Author: Test user
 Date: COMMIT_DATE
 
 Initial commit
-
 ----------------------------
 Command: reset HEAD~1
 Reset successful
@@ -56,7 +55,6 @@ Author: Test user
 Date: COMMIT_DATE
 
 Initial commit
-
 ----------------------------
 Create file 'file.txt' with content 'ccc'
 ----------------------------
@@ -84,4 +82,3 @@ Author: Test user
 Date: COMMIT_DATE
 
 Initial commit
-

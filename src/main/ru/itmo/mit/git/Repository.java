@@ -102,8 +102,10 @@ public class Repository {
 
     public void status(PrintStream out) {
         StringBuilder status = new StringBuilder();
-        if (isHeadDetached()) {
+        if (currentBranch == null) {
             status.append("Error while performing status: Head is detached\n");
+            out.print(status.toString());
+            return;
         } else {
             status.append("Current branch is '").append(currentBranch).append("'\n");
         }
@@ -180,17 +182,6 @@ public class Repository {
         return filesInCommit;
     }
 
-    private boolean isHeadDetached() {
-        try {
-            Path headFilePath = Paths.get(workingDir, HEAD_FILE);
-            String headContent = Files.readString(headFilePath, StandardCharsets.UTF_8);
-            return !headContent.startsWith("ref: refs/heads/");
-        } catch (IOException e) {
-            return false;
-        }
-    }
-
-
     private List<String> getUntrackedFiles() throws IOException {
         List<String> untrackedFiles = new ArrayList<>();
         Path workingDirPath = Paths.get(workingDir);
@@ -221,9 +212,7 @@ public class Repository {
                 }
                 currentCommit = getParentCommit(commitContent);
             }
-        } catch (IOException e) {
-            // Логирование ошибки, если необходимо
-        }
+        } catch (IOException e) {}
         return false;
     }
 
@@ -443,8 +432,10 @@ public class Repository {
 
     public void checkout(String revision) throws GitException {
         reset(revision);
-        if (!revision.matches("[a-fA-F0-9]{40}")) {
+        if (!revision.matches("[a-fA-F0-9]{40}") && !revision.startsWith("HEAD~")) {
             currentBranch = revision;
+        } else {
+            currentBranch = null;
         }
         saveHead();
         System.out.println("Checkout completed successful");

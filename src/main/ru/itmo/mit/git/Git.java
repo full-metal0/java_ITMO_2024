@@ -54,6 +54,11 @@ public class Git implements GitCli {
                 if (arguments.get(0).equals("--")) {
                     repository.checkoutFiles(arguments.subList(1, arguments.size()));
                     outputStream.println("Checkout completed successful");
+                } else if (arguments.get(0).startsWith("HEAD~")) {
+                    int n = Integer.parseInt(arguments.get(0).substring(5));
+                    String revision = repository.getRelativeRevisionFromHead(n);
+                    repository.checkout(revision);
+                    outputStream.println("Checkout completed successful");
                 } else {
                     repository.checkout(arguments.get(0));
                     outputStream.println("Checkout completed successful");

@@ -55,8 +55,6 @@ public class Repository {
             Files.write(masterBranchPath, headCommit.getBytes(StandardCharsets.UTF_8));
 
             Files.write(headFile, "ref: refs/heads/master".getBytes(StandardCharsets.UTF_8));
-
-            System.out.println("Project initialized");
         } catch (IOException e) {
             throw new GitException("Failed to initialize repository", e);
         }
@@ -73,32 +71,17 @@ public class Repository {
                 }
             }
             saveIndex();
-            System.out.println("Add completed successful");
         } catch (IOException e) {
             throw new GitException("Failed to add files", e);
         }
     }
 
     public void rm(List<String> files) throws GitException {
-        // Начало выполнения метода rm
-        System.out.println("Начало выполнения метода rm");
-
-        // Проходим по каждому файлу из списка files
         for (String file : files) {
-            System.out.println("Обработка файла: " + file);
-
-            // Удаление файла из индекса
             index.remove(file);
-            System.out.println("Файл удален из индекса: " + file);
         }
-
-        // Сохранение обновленного индекса
         saveIndex();
-
-        // Завершение выполнения метода rm
-        System.out.println("Rm completed successfully");
     }
-
 
     public void status(PrintStream out) {
         StringBuilder status = new StringBuilder();
@@ -113,9 +96,13 @@ public class Repository {
         try {
             List<String> untrackedFiles = getUntrackedFiles();
             List<String> readyToCommitFiles = getReadyToCommitFiles();
+            List<String> modifiedFiles = getModifiedFiles();
+            List<String> removedFiles = getRemovedFiles();
 
             Collections.sort(readyToCommitFiles);
             Collections.sort(untrackedFiles);
+            Collections.sort(modifiedFiles);
+            Collections.sort(removedFiles);
 
             if (!readyToCommitFiles.isEmpty()) {
                 status.append("Ready to commit:\n\n");
@@ -135,7 +122,25 @@ public class Repository {
                 status.append("\n");
             }
 
-            if (readyToCommitFiles.isEmpty() && untrackedFiles.isEmpty()) {
+            if (!modifiedFiles.isEmpty()) {
+                status.append("Untracked files:\n\n");
+                status.append("Modified files:\n");
+                for (String file : modifiedFiles) {
+                    status.append("    ").append(file).append("\n");
+                }
+                status.append("\n");
+            }
+
+            if (!removedFiles.isEmpty()) {
+                status.append("Untracked files:\n\n");
+                status.append("Removed files:\n");
+                for (String file : removedFiles) {
+                    status.append("    ").append(file).append("\n");
+                }
+                status.append("\n");
+            }
+
+            if (readyToCommitFiles.isEmpty() && untrackedFiles.isEmpty() && modifiedFiles.isEmpty() && removedFiles.isEmpty()) {
                 status.append("Everything up to date\n");
             }
         } catch (IOException e) {
@@ -145,97 +150,11 @@ public class Repository {
         out.print(status.toString());
     }
 
-    private List<String> getReadyToCommitFiles() throws IOException {
-        List<String> readyToCommitFiles = new ArrayList<>();
-        Path workingDirPath = Paths.get(workingDir);
-        Map<String, String> filesInCommit = getFilesFromLastCommit();
-
-        Files.walk(workingDirPath)
-                .filter(Files::isRegularFile)
-                .filter(path -> !path.startsWith(workingDirPath.resolve(REPO_DIR)))
-                .forEach(path -> {
-                    String relativePath = workingDirPath.relativize(path).toString();
-                    if (index.containsKey(relativePath) && !filesInCommit.containsKey(relativePath)) {
-                        readyToCommitFiles.add(relativePath);
-                    }
-                });
-
-        return readyToCommitFiles;
-    }
-
-
-    private Map<String, String> getFilesFromLastCommit() throws IOException {
-        Map<String, String> filesInCommit = new HashMap<>();
-        if (headCommit != null) {
-            Path commitPath = Paths.get(workingDir, COMMITS_DIR, headCommit);
-            List<String> commitContent = Files.readAllLines(commitPath, StandardCharsets.UTF_8);
-            for (String line : commitContent) {
-                if (line.startsWith("Message:") || line.startsWith("Date:") || line.startsWith("Parent:")) {
-                    continue;
-                }
-                String[] parts = line.split(": ", 2);
-                if (parts.length == 2) {
-                    filesInCommit.put(parts[0], parts[1]);
-                }
-            }
-        }
-        return filesInCommit;
-    }
-
-    private List<String> getUntrackedFiles() throws IOException {
-        List<String> untrackedFiles = new ArrayList<>();
-        Path workingDirPath = Paths.get(workingDir);
-
-        Files.walk(workingDirPath)
-                .filter(Files::isRegularFile)
-                .filter(path -> !path.startsWith(workingDirPath.resolve(REPO_DIR)))
-                .forEach(path -> {
-                    String relativePath = workingDirPath.relativize(path).toString();
-                    if (!index.containsKey(relativePath) && !isFileTracked(relativePath)) {
-                        untrackedFiles.add(relativePath);
-                    }
-                });
-
-        return untrackedFiles;
-    }
-
-    private boolean isFileTracked(String relativePath) {
-        try {
-            String currentCommit = headCommit;
-            while (currentCommit != null) {
-                Path commitPath = Paths.get(workingDir, COMMITS_DIR, currentCommit);
-                List<String> commitContent = Files.readAllLines(commitPath, StandardCharsets.UTF_8);
-                for (String line : commitContent) {
-                    if (line.startsWith(relativePath + ":")) {
-                        return true;
-                    }
-                }
-                currentCommit = getParentCommit(commitContent);
-            }
-        } catch (IOException e) {}
-        return false;
-    }
-
-    private String getParentCommit(List<String> commitContent) {
-        for (String line : commitContent) {
-            if (line.startsWith("Parent: ")) {
-                return line.substring("Parent: ".length());
-            }
-        }
-        return null;
-    }
-
-
     public void commit(String message) throws GitException {
         if (index.isEmpty()) {
-            System.out.println("Индекс пустой, нечего коммитить.");
             throw new GitException("Nothing to commit");
         }
-
-        System.out.println("Начинаем создание коммита с сообщением: " + message);
-
         String commitHash = generateHash(message + new Date().toString());
-        System.out.println("Сгенерирован хэш коммита: " + commitHash);
 
         try {
             StringBuilder commitContent = new StringBuilder();
@@ -249,40 +168,20 @@ public class Repository {
                 commitContent.append(entry.getKey()).append(": ").append(entry.getValue()).append("\n");
             }
 
-            System.out.println("Создано содержимое коммита:\n" + commitContent.toString());
-
             Path commitPath = Paths.get(workingDir, COMMITS_DIR, commitHash);
             Files.write(commitPath, commitContent.toString().getBytes(StandardCharsets.UTF_8));
-            System.out.println("Коммит записан в файл: " + commitPath.toString());
 
             headCommit = commitHash;
             saveHead();
-            System.out.println("HEAD обновлен на коммит: " + commitHash);
 
             saveBranch();
-            System.out.println("Текущая ветка сохранена.");
 
             index.clear();
             saveIndex();
-            System.out.println("Индекс очищен и сохранен.");
-
-            System.out.println("Files committed");
         } catch (IOException e) {
-            System.out.println("Ошибка при создании коммита: " + e.getMessage());
             throw new GitException("Failed to create commit", e);
         }
     }
-
-
-    private void saveBranch() throws GitException {
-        try {
-            Path branchPath = Paths.get(workingDir, BRANCHES_DIR, currentBranch);
-            Files.write(branchPath, headCommit.getBytes(StandardCharsets.UTF_8));
-        } catch (IOException e) {
-            throw new GitException("Failed to save branch", e);
-        }
-    }
-
 
     public void reset(String revision) throws GitException {
         String commitHash = getCommitHash(revision);
@@ -318,83 +217,10 @@ public class Repository {
             saveHead();
             saveIndex();
 
-            System.out.println("Reset successful");
         } catch (IOException e) {
             throw new GitException("Failed to reset to revision: " + revision, e);
         }
     }
-
-
-    private void cleanWorkingDirectory() throws IOException {
-        Files.walk(Paths.get(workingDir))
-                .filter(path -> !path.startsWith(Paths.get(workingDir, REPO_DIR)))
-                .filter(Files::isRegularFile)
-                .forEach(path -> {
-                    try {
-                        Files.delete(path);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                });
-    }
-
-    private String getCommitHash(String revision) throws GitException {
-        if (revision.equals("HEAD")) {
-            return headCommit;
-        }
-        if (revision.startsWith("HEAD~")) {
-            int n = Integer.parseInt(revision.substring(5));
-            return getRelativeRevisionFromHead(n);
-        }
-        if (revision.matches("[a-fA-F0-9]{40}")) {
-            Path commitPath = Paths.get(workingDir, COMMITS_DIR, revision);
-            if (Files.exists(commitPath)) {
-                return revision;
-            }
-        }
-
-        Path branchPath = Paths.get(workingDir, BRANCHES_DIR, revision);
-        if (Files.exists(branchPath)) {
-            try {
-                return new String(Files.readAllBytes(branchPath), StandardCharsets.UTF_8).trim();
-            } catch (IOException e) {
-                throw new GitException("Failed to read branch: " + revision, e);
-            }
-        }
-        throw new GitException("Invalid revision format: " + revision);
-    }
-
-    private void saveHead() throws GitException {
-        try {
-            Path headFilePath = Paths.get(workingDir, HEAD_FILE);
-            Files.write(headFilePath, ("ref: refs/heads/" + currentBranch).getBytes(StandardCharsets.UTF_8));
-        } catch (IOException e) {
-            throw new GitException("Failed to save HEAD", e);
-        }
-    }
-
-    private void saveIndex() throws GitException {
-        System.out.println("Начало выполнения метода saveIndex");
-
-        StringBuilder indexContent = new StringBuilder();
-        System.out.println("Инициализирован StringBuilder для создания содержимого индекса");
-
-        for (Map.Entry<String, String> entry : index.entrySet()) {
-            indexContent.append(entry.getKey()).append(":").append(entry.getValue()).append("\n");
-            System.out.println("Добавлено в StringBuilder: " + entry.getKey() + ":" + entry.getValue());
-        }
-
-        try {
-            Files.write(Paths.get(workingDir, INDEX_FILE), indexContent.toString().getBytes(StandardCharsets.UTF_8));
-            System.out.println("Содержимое индекса сохранено в файл " + INDEX_FILE);
-        } catch (IOException e) {
-            System.out.println("Произошла ошибка при сохранении индекса в файл " + INDEX_FILE);
-            throw new GitException("Failed to save index", e);
-        }
-
-        System.out.println("Завершение выполнения метода saveIndex");
-    }
-
 
     public void log(PrintStream out, String fromRevision) throws GitException {
         try {
@@ -438,9 +264,7 @@ public class Repository {
             currentBranch = null;
         }
         saveHead();
-        System.out.println("Checkout completed successful");
     }
-
 
     public void checkoutFiles(List<String> files) throws GitException {
         try {
@@ -484,7 +308,6 @@ public class Repository {
             out.println("You can checkout it with 'checkout " + branchName + "'");
             Files.write(branchPath, headCommit.getBytes(StandardCharsets.UTF_8));
 
-            // Automatically checkout the new branch
             currentBranch = branchName;
             saveHead();
 
@@ -500,7 +323,6 @@ public class Repository {
                 throw new GitException("Branch does not exist: " + branchName);
             }
             Files.delete(branchPath);
-            System.out.println("Branch " + branchName + " removed successfully");
         } catch (IOException e) {
             throw new GitException("Failed to remove branch: " + branchName, e);
         }
@@ -604,6 +426,189 @@ public class Repository {
             return sb.toString();
         } catch (NoSuchAlgorithmException e) {
             throw new GitException("Failed to generate hash", e);
+        }
+    }
+
+    private List<String> getModifiedFiles() throws IOException {
+        List<String> modifiedFiles = new ArrayList<>();
+        Map<String, String> filesInCommit = getFilesFromLastCommit();
+
+        for (Map.Entry<String, String> entry : filesInCommit.entrySet()) {
+            String filePath = entry.getKey();
+            Path fileFullPath = Paths.get(workingDir, filePath);
+            if (Files.exists(fileFullPath)) {
+                String currentContent = new String(Files.readAllBytes(fileFullPath), StandardCharsets.UTF_8);
+                if (!currentContent.equals(entry.getValue())) {
+                    modifiedFiles.add(filePath);
+                }
+            }
+        }
+
+        return modifiedFiles;
+    }
+
+    private List<String> getRemovedFiles() throws IOException {
+        List<String> removedFiles = new ArrayList<>();
+        Map<String, String> filesInCommit = getFilesFromLastCommit();
+
+        for (String filePath : filesInCommit.keySet()) {
+            Path fileFullPath = Paths.get(workingDir, filePath);
+            if (!Files.exists(fileFullPath)) {
+                removedFiles.add(filePath);
+            }
+        }
+
+        return removedFiles;
+    }
+
+    private List<String> getReadyToCommitFiles() throws IOException {
+        List<String> readyToCommitFiles = new ArrayList<>();
+        Path workingDirPath = Paths.get(workingDir);
+        Map<String, String> filesInCommit = getFilesFromLastCommit();
+
+        Files.walk(workingDirPath)
+                .filter(Files::isRegularFile)
+                .filter(path -> !path.startsWith(workingDirPath.resolve(REPO_DIR)))
+                .forEach(path -> {
+                    String relativePath = workingDirPath.relativize(path).toString();
+                    if (index.containsKey(relativePath) && !filesInCommit.containsKey(relativePath)) {
+                        readyToCommitFiles.add(relativePath);
+                    }
+                });
+
+        return readyToCommitFiles;
+    }
+
+
+    private Map<String, String> getFilesFromLastCommit() throws IOException {
+        Map<String, String> filesInCommit = new HashMap<>();
+        if (headCommit != null) {
+            Path commitPath = Paths.get(workingDir, COMMITS_DIR, headCommit);
+            List<String> commitContent = Files.readAllLines(commitPath, StandardCharsets.UTF_8);
+            for (String line : commitContent) {
+                if (line.startsWith("Message:") || line.startsWith("Date:") || line.startsWith("Parent:")) {
+                    continue;
+                }
+                String[] parts = line.split(": ", 2);
+                if (parts.length == 2) {
+                    filesInCommit.put(parts[0], parts[1]);
+                }
+            }
+        }
+        return filesInCommit;
+    }
+
+    private List<String> getUntrackedFiles() throws IOException {
+        List<String> untrackedFiles = new ArrayList<>();
+        Path workingDirPath = Paths.get(workingDir);
+
+        Files.walk(workingDirPath)
+                .filter(Files::isRegularFile)
+                .filter(path -> !path.startsWith(workingDirPath.resolve(REPO_DIR)))
+                .forEach(path -> {
+                    String relativePath = workingDirPath.relativize(path).toString();
+                    if (!index.containsKey(relativePath) && !isFileTracked(relativePath)) {
+                        untrackedFiles.add(relativePath);
+                    }
+                });
+
+        return untrackedFiles;
+    }
+
+    private boolean isFileTracked(String relativePath) {
+        try {
+            String currentCommit = headCommit;
+            while (currentCommit != null) {
+                Path commitPath = Paths.get(workingDir, COMMITS_DIR, currentCommit);
+                List<String> commitContent = Files.readAllLines(commitPath, StandardCharsets.UTF_8);
+                for (String line : commitContent) {
+                    if (line.startsWith(relativePath + ":")) {
+                        return true;
+                    }
+                }
+                currentCommit = getParentCommit(commitContent);
+            }
+        } catch (IOException e) {}
+        return false;
+    }
+
+    private String getParentCommit(List<String> commitContent) {
+        for (String line : commitContent) {
+            if (line.startsWith("Parent: ")) {
+                return line.substring("Parent: ".length());
+            }
+        }
+        return null;
+    }
+
+    private void saveBranch() throws GitException {
+        try {
+            Path branchPath = Paths.get(workingDir, BRANCHES_DIR, currentBranch);
+            Files.write(branchPath, headCommit.getBytes(StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            throw new GitException("Failed to save branch", e);
+        }
+    }
+
+    private void cleanWorkingDirectory() throws IOException {
+        Files.walk(Paths.get(workingDir))
+                .filter(path -> !path.startsWith(Paths.get(workingDir, REPO_DIR)))
+                .filter(Files::isRegularFile)
+                .forEach(path -> {
+                    try {
+                        Files.delete(path);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                });
+    }
+
+    private String getCommitHash(String revision) throws GitException {
+        if (revision.equals("HEAD")) {
+            return headCommit;
+        }
+        if (revision.startsWith("HEAD~")) {
+            int n = Integer.parseInt(revision.substring(5));
+            return getRelativeRevisionFromHead(n);
+        }
+        if (revision.matches("[a-fA-F0-9]{40}")) {
+            Path commitPath = Paths.get(workingDir, COMMITS_DIR, revision);
+            if (Files.exists(commitPath)) {
+                return revision;
+            }
+        }
+
+        Path branchPath = Paths.get(workingDir, BRANCHES_DIR, revision);
+        if (Files.exists(branchPath)) {
+            try {
+                return new String(Files.readAllBytes(branchPath), StandardCharsets.UTF_8).trim();
+            } catch (IOException e) {
+                throw new GitException("Failed to read branch: " + revision, e);
+            }
+        }
+        throw new GitException("Invalid revision format: " + revision);
+    }
+
+    private void saveHead() throws GitException {
+        try {
+            Path headFilePath = Paths.get(workingDir, HEAD_FILE);
+            Files.write(headFilePath, ("ref: refs/heads/" + currentBranch).getBytes(StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            throw new GitException("Failed to save HEAD", e);
+        }
+    }
+
+    private void saveIndex() throws GitException {
+        StringBuilder indexContent = new StringBuilder();
+
+        for (Map.Entry<String, String> entry : index.entrySet()) {
+            indexContent.append(entry.getKey()).append(":").append(entry.getValue()).append("\n");
+        }
+
+        try {
+            Files.write(Paths.get(workingDir, INDEX_FILE), indexContent.toString().getBytes(StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            throw new GitException("Failed to save index", e);
         }
     }
 }

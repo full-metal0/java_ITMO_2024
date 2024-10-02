@@ -15,7 +15,7 @@ public class GitTest extends AbstractGitTest {
 
     @Override
     protected TestMode testMode() {
-        return TestMode.TEST_DATA;
+        return TestMode.SYSTEM_OUT;
     }
 
     @Test
